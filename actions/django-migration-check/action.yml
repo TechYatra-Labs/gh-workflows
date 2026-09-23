@@ -1,0 +1,39 @@
+name: Validate Django migrations
+description: Validate Django migration history on a remote Docker Compose deployment
+
+inputs:
+  ssh-host:
+    description: Remote VM hostname or IP address
+    required: true
+  ssh-user:
+    description: SSH user for the remote VM
+    required: true
+  project-dir:
+    description: Absolute path to the remote Docker Compose project
+    required: true
+  compose-file:
+    description: Docker Compose file relative to the project directory
+    required: false
+    default: docker-compose.yml
+  service:
+    description: Docker Compose service containing Django
+    required: false
+    default: web
+  migration-command:
+    description: Django migration command (migrate or migrate_schemas)
+    required: false
+    default: migrate_schemas
+
+runs:
+  using: composite
+  steps:
+    - name: Validate Django migration history
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_USER: ${{ inputs.ssh-user }}
+        PROJECT_DIR: ${{ inputs.project-dir }}
+        COMPOSE_FILE: ${{ inputs.compose-file }}
+        SERVICE: ${{ inputs.service }}
+        MIGRATION_COMMAND: ${{ inputs.migration-command }}
+      run: "$GITHUB_ACTION_PATH/scripts/check-migrations.sh"
