@@ -1,0 +1,29 @@
+name: Show Docker Compose status
+description: Show container status for a remote Docker Compose project
+
+inputs:
+  ssh-host:
+    description: Remote VM hostname or IP address
+    required: true
+  ssh-user:
+    description: SSH user for the remote VM
+    required: true
+  project-dir:
+    description: Absolute path to the remote Docker Compose project
+    required: true
+  compose-file:
+    description: Docker Compose file relative to the project directory
+    required: false
+    default: docker-compose.yml
+
+runs:
+  using: composite
+  steps:
+    - name: Show Docker Compose status
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_USER: ${{ inputs.ssh-user }}
+        PROJECT_DIR: ${{ inputs.project-dir }}
+        COMPOSE_FILE: ${{ inputs.compose-file }}
+      run: "$GITHUB_ACTION_PATH/scripts/show-status.sh"

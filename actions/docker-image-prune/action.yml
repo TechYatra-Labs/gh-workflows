@@ -1,0 +1,20 @@
+name: Prune unused Docker images
+description: Remove all unused Docker images from a remote server
+
+inputs:
+  ssh-host:
+    description: Remote VM hostname or IP address
+    required: true
+  ssh-user:
+    description: SSH user for the remote VM
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Prune unused Docker images
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_USER: ${{ inputs.ssh-user }}
+      run: "$GITHUB_ACTION_PATH/scripts/prune-images.sh"

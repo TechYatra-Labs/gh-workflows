@@ -42,10 +42,10 @@ jobs:
       - name: Check Bash syntax and executable permissions
         shell: bash
         run: |
-          test -x actions/django-migration-check/scripts/check-migrations.sh
           mapfile -d '' scripts < <(
             find . -type f -name '*.sh' -not -path './.git/*' -print0
           )
           for script in "${scripts[@]}"; do
+            test -x "$script"
             bash -n "$script"
           done
