@@ -50,10 +50,10 @@ destination="${INPUT_DESTINATION#/}"
 if [[ -z "$destination" ]]; then
   destination="$(basename "$source_path")"
 fi
-artifact_type=file
+artifact_type="file"
 aws_args=(s3 cp)
 if [[ -d "$source_path" ]]; then
-  artifact_type=directory
+  artifact_type="directory"
   destination="${destination%/}/"
   aws_args+=(--recursive)
 elif [[ "$destination" == */ ]]; then
