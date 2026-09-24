@@ -1,0 +1,63 @@
+name: Artifact downloader
+description: Download any file or directory from AWS S3 or DigitalOcean Spaces
+
+inputs:
+  provider:
+    description: Storage provider (aws or digitalocean)
+    required: false
+    default: aws
+  bucket:
+    description: S3 bucket or Spaces name
+    required: true
+  region:
+    description: AWS or DigitalOcean region
+    required: true
+  source:
+    description: Remote object key or directory prefix
+    required: true
+  destination:
+    description: Local destination file or directory
+    required: true
+  artifact-type:
+    description: Artifact type (file or directory)
+    required: false
+    default: file
+  access-key-id:
+    description: Access key ID; omit when AWS credentials are already configured with OIDC
+    required: false
+  secret-access-key:
+    description: Secret access key
+    required: false
+  session-token:
+    description: Optional temporary AWS session token
+    required: false
+  endpoint-url:
+    description: Custom S3-compatible endpoint; inferred for DigitalOcean Spaces
+    required: false
+
+outputs:
+  storage-uri:
+    description: S3 URI downloaded from
+    value: ${{ steps.download.outputs.storage-uri }}
+  local-path:
+    description: Local destination path
+    value: ${{ steps.download.outputs.local-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download artifact
+      id: download
+      shell: bash
+      env:
+        INPUT_PROVIDER: ${{ inputs.provider }}
+        INPUT_BUCKET: ${{ inputs.bucket }}
+        INPUT_REGION: ${{ inputs.region }}
+        INPUT_SOURCE: ${{ inputs.source }}
+        INPUT_DESTINATION: ${{ inputs.destination }}
+        INPUT_ARTIFACT_TYPE: ${{ inputs.artifact-type }}
+        INPUT_ACCESS_KEY_ID: ${{ inputs.access-key-id }}
+        INPUT_SECRET_ACCESS_KEY: ${{ inputs.secret-access-key }}
+        INPUT_SESSION_TOKEN: ${{ inputs.session-token }}
+        INPUT_ENDPOINT_URL: ${{ inputs.endpoint-url }}
+      run: "$GITHUB_ACTION_PATH/scripts/download.sh"

@@ -1,0 +1,70 @@
+name: Artifact uploader
+description: Upload any file or directory to AWS S3 or DigitalOcean Spaces
+
+inputs:
+  provider:
+    description: Storage provider (aws or digitalocean)
+    required: false
+    default: aws
+  bucket:
+    description: S3 bucket or Spaces name
+    required: true
+  region:
+    description: AWS or DigitalOcean region
+    required: true
+  source:
+    description: Local file or directory, such as dist, build/app.apk, or archive.zip
+    required: true
+  destination:
+    description: Remote object key or prefix; omit to use the source basename
+    required: false
+  access-key-id:
+    description: Access key ID; omit when AWS credentials are already configured with OIDC
+    required: false
+  secret-access-key:
+    description: Secret access key
+    required: false
+  session-token:
+    description: Optional temporary AWS session token
+    required: false
+  endpoint-url:
+    description: Custom S3-compatible endpoint; inferred for DigitalOcean Spaces
+    required: false
+  acl:
+    description: Optional object ACL, such as public-read
+    required: false
+  presign-expiry:
+    description: Generate a temporary URL for a file upload, in seconds; 0 disables it
+    required: false
+    default: "0"
+
+outputs:
+  storage-uri:
+    description: S3 URI of the uploaded file or directory prefix
+    value: ${{ steps.upload.outputs.storage-uri }}
+  artifact-url:
+    description: Presigned URL when requested, otherwise the public URL for a single file
+    value: ${{ steps.upload.outputs.artifact-url }}
+  artifact-type:
+    description: Uploaded artifact type (file or directory)
+    value: ${{ steps.upload.outputs.artifact-type }}
+
+runs:
+  using: composite
+  steps:
+    - name: Upload artifact
+      id: upload
+      shell: bash
+      env:
+        INPUT_PROVIDER: ${{ inputs.provider }}
+        INPUT_BUCKET: ${{ inputs.bucket }}
+        INPUT_REGION: ${{ inputs.region }}
+        INPUT_SOURCE: ${{ inputs.source }}
+        INPUT_DESTINATION: ${{ inputs.destination }}
+        INPUT_ACCESS_KEY_ID: ${{ inputs.access-key-id }}
+        INPUT_SECRET_ACCESS_KEY: ${{ inputs.secret-access-key }}
+        INPUT_SESSION_TOKEN: ${{ inputs.session-token }}
+        INPUT_ENDPOINT_URL: ${{ inputs.endpoint-url }}
+        INPUT_ACL: ${{ inputs.acl }}
+        INPUT_PRESIGN_EXPIRY: ${{ inputs.presign-expiry }}
+      run: "$GITHUB_ACTION_PATH/scripts/upload.sh"
