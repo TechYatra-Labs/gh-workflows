@@ -17,7 +17,7 @@ inputs:
   api-url:
     description: Bulk email API endpoint
     required: false
-    default: https://mailserver.techyatralabs.com/send/bulk
+    default: https://mailserver.techyatralabs.com/v1/emails
   fail-on-error:
     description: Fail the workflow when the email cannot be sent
     required: false
