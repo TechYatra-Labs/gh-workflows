@@ -9,40 +9,66 @@ if [[ -z "$MAIL_API_KEY" ]]; then
   exit 1
 fi
 
+if [[ -z "$MAIL_RECIPIENTS" ]]; then
+  echo "::error::At least one recipient is required."
+  exit 1
+fi
+
 case "$FAIL_ON_ERROR" in
-  true|false) ;;
+  true|false)
+    ;;
   *)
     echo "::error::The fail-on-error input must be either 'true' or 'false'."
     exit 1
     ;;
 esac
 
-recipients="$({ printf '%s\n' "$MAIL_RECIPIENTS"; } | jq -Rsc '
-  split("\n")
-  | map(split(","))
-  | flatten
-  | map(gsub("^[[:space:]]+|[[:space:]]+$"; ""))
-  | map(select(length > 0))
-')"
+# Convert comma/newline-separated recipients into a JSON array.
+recipients="$(
+  printf '%s\n' "$MAIL_RECIPIENTS" |
+    jq -Rsc '
+      split("\n")
+      | map(split(","))
+      | flatten
+      | map(gsub("^[[:space:]]+|[[:space:]]+$"; ""))
+      | map(select(length > 0))
+    '
+)"
 
 if [[ "$(jq 'length' <<<"$recipients")" -eq 0 ]]; then
   echo "::error::At least one recipient is required."
   exit 1
 fi
 
+# Build payload according to the Tech Yatra Mail API.
 jq -n \
-  --argjson recipients "$recipients" \
+  --arg from_email "$MAIL_FROM_EMAIL" \
+  --arg from_name "$MAIL_FROM_NAME" \
+  --argjson recipient_email "$recipients" \
   --arg subject "$MAIL_SUBJECT" \
   --arg body "$MAIL_BODY" \
-  '{recipients: $recipients, subject: $subject, body: $body}' \
-  > "$payload_file"
+  --arg reply_to "$MAIL_REPLY_TO" \
+  '{
+    from_email: $from_email,
+    from_name: $from_name,
+    recipient_email: $recipient_email,
+    subject: $subject,
+    body: $body,
+    body_type: "text",
+    reply_to: $reply_to
+  }' > "$payload_file"
 
-if curl --fail-with-body --silent --show-error \
+echo "Sending email to $(jq 'length' <<<"$recipients") recipient(s)..."
+
+if curl --fail-with-body \
+  --silent \
+  --show-error \
   --retry 2 \
   --request POST "$MAIL_API_URL" \
   --header "Content-Type: application/json" \
   --header "X-API-Key: $MAIL_API_KEY" \
   --data-binary "@$payload_file"; then
+
   echo "Email notification sent to $(jq 'length' <<<"$recipients") recipient(s)."
 else
   if [[ "$FAIL_ON_ERROR" == "true" ]]; then
