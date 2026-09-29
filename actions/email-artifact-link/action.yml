@@ -5,19 +5,39 @@ inputs:
   api-key:
     description: API key used to authenticate with the mail API
     required: true
+
   recipients:
     description: Comma- or newline-separated email recipients
     required: true
+
   subject:
     description: Email subject
     required: true
+
   body:
     description: Plain-text email body
     required: true
+
   api-url:
-    description: Bulk email API endpoint
+    description: Email API endpoint
     required: false
     default: https://mailserver.techyatralabs.com/v1/emails
+
+  from-email:
+    description: Sender email address
+    required: false
+    default: notifications@techyatralabs.com
+
+  from-name:
+    description: Sender name
+    required: false
+    default: Tech Yatra
+
+  reply-to:
+    description: Reply-to email address
+    required: false
+    default: support@techyatralabs.com
+
   fail-on-error:
     description: Fail the workflow when the email cannot be sent
     required: false
@@ -34,5 +54,8 @@ runs:
         MAIL_SUBJECT: ${{ inputs.subject }}
         MAIL_BODY: ${{ inputs.body }}
         MAIL_API_URL: ${{ inputs.api-url }}
+        MAIL_FROM_EMAIL: ${{ inputs.from-email }}
+        MAIL_FROM_NAME: ${{ inputs.from-name }}
+        MAIL_REPLY_TO: ${{ inputs.reply-to }}
         FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
       run: "$GITHUB_ACTION_PATH/scripts/send-email.sh"
