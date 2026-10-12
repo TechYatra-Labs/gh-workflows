@@ -62,7 +62,7 @@ jq -n \
     recipient_email: $recipient_email,
     subject: $subject,
     body: $body,
-    body_type: "html",
+    body_type: "plain",
     from_email: $from_email,
     from_name: $from_name,
     reply_to: $reply_to
