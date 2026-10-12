@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-payload_file="$(mktemp)"
-response_file="$(mktemp)"
-
-trap 'rm -f "$payload_file" "$response_file"' EXIT
-
 # Default to the working API endpoint if not explicitly provided
 MAIL_API_URL="${MAIL_API_URL:-https://mailserver.techyatralabs.com/v1/emails}"
 
@@ -20,16 +15,7 @@ if [[ -z "${MAIL_RECIPIENTS:-}" ]]; then
   exit 1
 fi
 
-case "${FAIL_ON_ERROR:-false}" in
-  true|false)
-    ;;
-  *)
-    echo "::error::The fail-on-error input must be either 'true' or 'false'."
-    exit 1
-    ;;
-esac
-
-# Convert comma/newline-separated recipients into a clean JSON array
+# Convert recipients into JSON array
 recipients="$(
   printf '%s\n' "$MAIL_RECIPIENTS" |
     jq -Rsc '
@@ -48,18 +34,13 @@ if [[ "$recipient_count" -eq 0 ]]; then
   exit 1
 fi
 
-# Determine body type: check input or auto-detect HTML
-BODY_TYPE="${MAIL_BODY_TYPE:-}"
-if [[ -z "$BODY_TYPE" ]]; then
-  if [[ "${MAIL_BODY:-}" =~ "<!DOCTYPE" || "${MAIL_BODY:-}" =~ "<html" ]]; then
-    BODY_TYPE="html"
-  else
-    BODY_TYPE="plain"
-  fi
+BODY_TYPE="${MAIL_BODY_TYPE:-plain}"
+if [[ "${MAIL_BODY:-}" =~ "<!DOCTYPE" || "${MAIL_BODY:-}" =~ "<html" ]]; then
+  BODY_TYPE="html"
 fi
 
-# Build JSON payload
-jq -n \
+# Build JSON payload directly into a variable
+payload="$(jq -nc \
   --argjson recipient_email "$recipients" \
   --arg subject "${MAIL_SUBJECT:-TeacherOS Notification}" \
   --arg body "${MAIL_BODY:-}" \
@@ -75,22 +56,14 @@ jq -n \
     from_email: $from_email,
     from_name: $from_name,
     reply_to: $reply_to
-  }' > "$payload_file"
-
-# Validate generated JSON
-if [[ ! -s "$payload_file" ]]; then
-  echo "::error::Generated email payload is empty."
-  exit 1
-fi
-
-if ! jq -e . "$payload_file" >/dev/null; then
-  echo "::error::Generated email payload is invalid JSON."
-  exit 1
-fi
+  }')"
 
 echo "Sending email to ${recipient_count} recipient(s)..."
 echo "Target endpoint: $MAIL_API_URL"
-echo "Payload size: $(wc -c < "$payload_file") bytes"
+echo "Payload: $payload"
+
+response_file="$(mktemp)"
+trap 'rm -f "$response_file"' EXIT
 
 http_code="$(
   curl \
@@ -98,14 +71,12 @@ http_code="$(
     --show-error \
     --output "$response_file" \
     --write-out '%{http_code}' \
-    --retry 2 \
-    --retry-delay 1 \
     --request POST \
     --url "$MAIL_API_URL" \
-    --header "accept: */*" \
-    --header "x-api-key: $MAIL_API_KEY" \
+    --header "Accept: application/json" \
     --header "Content-Type: application/json" \
-    --data-binary @"$payload_file"
+    --header "x-api-key: $MAIL_API_KEY" \
+    --data-raw "$payload"
 )"
 
 echo "Mail API HTTP Status: $http_code"
@@ -114,12 +85,11 @@ cat "$response_file" || true
 echo
 
 if [[ "$http_code" =~ ^2[0-9][0-9]$ ]]; then
-  echo "Email notification sent successfully to ${recipient_count} recipient(s)."
+  echo "Email notification sent successfully."
   exit 0
 fi
 
 message="Mail API returned HTTP ${http_code}."
-
 if [[ "${FAIL_ON_ERROR:-false}" == "true" ]]; then
   echo "::error::$message"
   exit 1
