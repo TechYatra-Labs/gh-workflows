@@ -6,6 +6,9 @@ response_file="$(mktemp)"
 
 trap 'rm -f "$payload_file" "$response_file"' EXIT
 
+# Default to the working API endpoint if not explicitly provided
+MAIL_API_URL="${MAIL_API_URL:-https://mailserver.techyatralabs.com/v1/emails}"
+
 # Validate required inputs
 if [[ -z "${MAIL_API_KEY:-}" ]]; then
   echo "::error::The api-key input must not be empty."
@@ -14,11 +17,6 @@ fi
 
 if [[ -z "${MAIL_RECIPIENTS:-}" ]]; then
   echo "::error::At least one recipient is required."
-  exit 1
-fi
-
-if [[ -z "${MAIL_API_URL:-}" ]]; then
-  echo "::error::MAIL_API_URL is required."
   exit 1
 fi
 
@@ -31,7 +29,7 @@ case "${FAIL_ON_ERROR:-false}" in
     ;;
 esac
 
-# Convert comma/newline-separated recipients into JSON array
+# Convert comma/newline-separated recipients into a clean JSON array
 recipients="$(
   printf '%s\n' "$MAIL_RECIPIENTS" |
     jq -Rsc '
@@ -50,25 +48,36 @@ if [[ "$recipient_count" -eq 0 ]]; then
   exit 1
 fi
 
-# Build payload expected by Tech Yatra Mail API
+# Determine body type: check input or auto-detect HTML
+BODY_TYPE="${MAIL_BODY_TYPE:-}"
+if [[ -z "$BODY_TYPE" ]]; then
+  if [[ "${MAIL_BODY:-}" =~ "<!DOCTYPE" || "${MAIL_BODY:-}" =~ "<html" ]]; then
+    BODY_TYPE="html"
+  else
+    BODY_TYPE="plain"
+  fi
+fi
+
+# Build JSON payload
 jq -n \
   --argjson recipient_email "$recipients" \
-  --arg subject "${MAIL_SUBJECT:-}" \
+  --arg subject "${MAIL_SUBJECT:-TeacherOS Notification}" \
   --arg body "${MAIL_BODY:-}" \
-  --arg from_email "${MAIL_FROM_EMAIL:-notifications@techyatralabs.com}" \
-  --arg from_name "${MAIL_FROM_NAME:-Tech Yatra}" \
-  --arg reply_to "${MAIL_REPLY_TO:-support@techyatralabs.com}" \
+  --arg body_type "$BODY_TYPE" \
+  --arg from_email "${MAIL_FROM_EMAIL:-apk-release@techyatralabs.com}" \
+  --arg from_name "${MAIL_FROM_NAME:-APP Developer}" \
+  --arg reply_to "${MAIL_REPLY_TO:-apk-release@techyatralabs.com}" \
   '{
     recipient_email: $recipient_email,
     subject: $subject,
     body: $body,
-    body_type: "plain",
+    body_type: $body_type,
     from_email: $from_email,
     from_name: $from_name,
     reply_to: $reply_to
   }' > "$payload_file"
 
-# Ensure payload exists and is valid JSON
+# Validate generated JSON
 if [[ ! -s "$payload_file" ]]; then
   echo "::error::Generated email payload is empty."
   exit 1
@@ -80,6 +89,7 @@ if ! jq -e . "$payload_file" >/dev/null; then
 fi
 
 echo "Sending email to ${recipient_count} recipient(s)..."
+echo "Target endpoint: $MAIL_API_URL"
 echo "Payload size: $(wc -c < "$payload_file") bytes"
 
 http_code="$(
@@ -98,6 +108,7 @@ http_code="$(
     --data-binary @"$payload_file"
 )"
 
+echo "Mail API HTTP Status: $http_code"
 echo "Mail API response:"
 cat "$response_file" || true
 echo
@@ -109,7 +120,7 @@ fi
 
 message="Mail API returned HTTP ${http_code}."
 
-if [[ "$FAIL_ON_ERROR" == "true" ]]; then
+if [[ "${FAIL_ON_ERROR:-false}" == "true" ]]; then
   echo "::error::$message"
   exit 1
 else
